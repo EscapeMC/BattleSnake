@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Battle Snake</title>
+	<style>
+	canvas {
+		display: block;
+		position: absolute;
+		border: 1px solid #000;
+		margin: auto;
+		top: 0;
+		bottom: 0;
+		right: 0;
+		left: 0;
+	}
+	</style>
+</head>
+<body>
+<div id = "winner">Player wins!</div>
+<button onclick='main()' id="start" style="height:50px;width:150px">Restart</button>
+<script>
+var
+
+COLS = 37,
+ROWS = 37,
+EMPTY = 0,
+SNAKE = 1,
+FRUIT = 2,
+OSNAKE = 3,
+LEFT  = 0,
+UP    = 1,
+RIGHT = 2,
+DOWN  = 3,
+oLEFT = 2,
+oUP = 3,
+oRIGHT = 0,
+oDOWN = 1,
+KEY_LEFT  = 37,
+KEY_UP    = 38,
+KEY_RIGHT = 39,
+KEY_DOWN  = 40,
+DIST = 3333,
+speed,
+four = 4,
+cont = true,
+mode,
+dis,
+safeMove = 0,
+MODE_FRUIT = 10000,
+MODE_SMART = 11000,
+MODE_DEF = 12000,
+dir = 0,
+hy,
+hx,
+canvas,
+ctx,
+keystate,
+frames,
+canMove = 0,
+score;
+
+
+grid = {
+	width: null,
+	height: null,
+	_grid: null,
+
+	init: function(d, c, r) {
+		this.width = r;
+		this.height = c;
+		this._grid = [];
+		for (var x=0; x < r; x++) {
+			this._grid.push([]);
+			for (var y=0; y < c; y++) {
+				this._grid[x].push(d);
+			}
+		}
+		
+	},
+
+	set: function(val, x, y) {
+		this._grid[x][y] = val;
+	},
+
+	get: function(x, y) {
+		return this._grid[x][y];
+	}
+}
+
+snake = {
+	direction: null,
+	lastDir: null,
+	last: null,
+	upcoming: null,
+	_queue: null,
+	init: function(d, x, y) {
+		this.direction = d;
+		this._queue = [];
+		this.insert(x, y);
+	},
+	insert: function(x, y) {
+		this._queue.unshift({x:x, y:y});
+		this.last = this._queue[0];
+	},
+	remove: function() {
+		return this._queue.pop();
+	}
+};
+osnake = {
+		direction: null,
+		lastDir: null,
+		last: null,
+		_queue: null,
+		init: function(d, x, y) {
+			this.direction = d;
+			this._queue = [];
+			this.insert(x, y);
+		},
+		insert: function(x, y) {
+			this._queue.unshift({x:x, y:y});
+			this.last = this._queue[0];
+		},
+		remove: function() {
+			return this._queue.pop();
+		}
+	};
+
+function setFood() {
+	var empty = [];
+	for (var x=0; x < grid.width; x++) {
+		for (var y=0; y < grid.height; y++) {
+			if (grid.get(x, y) === EMPTY) {
+				empty.push({x:x, y:y});
+			}
+		}
+	}
+	var randpos = empty[Math.round(Math.random()*(empty.length - 1))];
+	grid.set(FRUIT, randpos.x, randpos.y);
+}
+function setReset(){
+	canMove = 0;
+}
+function main() {
+	canvas = document.createElement("canvas");
+	canvas.width = COLS*43;
+	canvas.height = ROWS*43;
+	ctx = canvas.getContext("2d");
+	document.body.appendChild(canvas);
+	ctx.font = "12px Helvetica";
+	frames = 0;
+	keystate = {};
+	document.addEventListener("keydown", function(evt) {
+		keystate[evt.keyCode] = true;
+	});
+	document.addEventListener("keyup", function(evt) {
+		delete keystate[evt.keyCode];
+	});
+	init();
+	loop();
+}
+function init() {
+	speed = 4;
+	switchButton();
+	mode = MODE_FRUIT;
+	canMove = 0;
+	snake.direction = UP;
+	osnake.direction = DOWN;
+	snake.lastDir = DOWN;
+	osnake.lastDir = UP;
+	score = 0;
+	grid.init(EMPTY, COLS, ROWS);
+	var sp = {x:Math.floor(COLS/2), y:ROWS-1};
+	snake.init(UP, sp.x, sp.y);
+	osnake.init(DOWN, sp.x, 0);
+	grid.set(OSNAKE, sp.x, 0);
+	grid.set(SNAKE, sp.x, sp.y);
+	for(var fud = 0; fud < 4; fud++){
+		setFood();
+	}
+}
+function loop() {
+	if(canMove === 0){
+		update();
+		draw();
+		window.requestAnimationFrame(loop, canvas);
+	}
+}
+function update() {
+	frames++;
+	if (keystate[KEY_LEFT] && snake.direction !== RIGHT) {
+		snake.direction = LEFT;
+		snake.upcoming = oLEFT;
+	}
+	if (keystate[KEY_UP] && snake.direction !== DOWN) {
+		snake.direction = UP;
+		snake.upcoming = oUP;
+	}
+	if (keystate[KEY_RIGHT] && snake.direction !== LEFT) {
+		snake.direction = RIGHT;
+		snake.upcoming = oRIGHT;
+	}
+	if (keystate[KEY_DOWN] && snake.direction !== UP) {
+		snake.direction = DOWN;
+		snake.upcoming = oDOWN;
+	}
+	if(score % 11 == 0 && score != 0){
+		if(speed > 1){
+			speed--;
+			score++;
+		}
+	}
+	if (frames % speed === 0) {
+		var nx = snake.last.x;
+		var ny = snake.last.y;
+		var onx = osnake.last.x;
+		var ony = osnake.last.y;
+		snekAI(nx, ny, onx, ony);
+		wallCheck(nx, ny);
+		if(canMove == 0){
+			if(snake.direction != snake.lastDir) {
+				switch (snake.direction) {
+					case LEFT:
+						nx--;
+						snake.lastDir = RIGHT;
+						break;
+					case UP:
+						ny--;
+						snake.lastDir = DOWN;
+						break;
+					case RIGHT:
+						nx++;
+						snake.lastDir = LEFT;
+						break;
+					case DOWN:
+						ny++;
+						snake.lastDir = UP;
+						break;
+				}
+			}else{
+				switch (snake.direction) {
+				case LEFT:
+					nx++;
+					snake.lastDir = LEFT;
+					break;
+				case UP:
+					ny++;
+					snake.lastDir = UP;
+					break;
+				case RIGHT:
+					nx--;
+					snake.lastDir = RIGHT;
+					break;
+				case DOWN:
+					ny--;
+					snake.lastDir = DOWN;
+					break;
+				}
+			}
+			if(osnake.direction != osnake.lastDir) {
+				switch (osnake.direction) {
+					case LEFT:
+						onx--;
+						osnake.lastDir = RIGHT;
+						break;
+					case UP:
+						ony--;
+						osnake.lastDir = DOWN;
+						break;
+					case RIGHT:
+						onx++;
+						osnake.lastDir = LEFT;
+						break;
+					case DOWN:
+						ony++;
+						osnake.lastDir = UP;
+						break;
+				}
+			}else{
+				switch (osnake.direction) {
+				case LEFT:
+					onx++;
+					osnake.lastDir = LEFT;
+					break;
+				case UP:
+					ony++;
+					osnake.lastDir = UP;
+					break;
+				case RIGHT:
+					onx--;
+					osnake.lastDir = RIGHT;
+					break;
+				case DOWN:
+					ony--;
+					osnake.lastDir = DOWN;
+					break;
+				}
+			}
+			if (0 > onx || onx > grid.width-1 ||
+				0 > ony || ony > grid.height-1 ||
+				grid.get(onx, ony) === SNAKE ||
+				grid.get(onx, ony) === OSNAKE
+			) {
+				canMove = 1;
+				switchButton();
+				var fred = document.getElementById("winner");
+				fred.innerHTML = "Player Wins!";
+			}else if(0 > nx || nx > grid.width-1  ||
+				0 > ny || ny > grid.height-1 ||
+				grid.get(nx, ny) === SNAKE || 
+				grid.get(nx, ny) === OSNAKE)
+			{
+				canMove = 1;
+				switchButton();
+				var fred = document.getElementById("winner");
+				fred.innerHTML = "AI Wins!";
+			}else if((nx == onx) && (ny == ony)){
+				canMove = 1;
+				switchButton();
+				var fred = document.getElementById("winner");
+				fred.innerHTML = "It is a tie! Somehow xD";			
+			}		
+			if (grid.get(nx, ny) === FRUIT) {
+				score++;
+				setFood();
+			} else {
+				var tail = snake.remove();
+				grid.set(EMPTY, tail.x, tail.y);
+			}
+			if (grid.get(onx, ony) === FRUIT) {
+				setFood();
+				score++;
+			} else {
+				var otail = osnake.remove();
+				grid.set(EMPTY, otail.x, otail.y);
+			}
+			grid.set(OSNAKE, onx, ony);
+			osnake.insert(onx, ony);
+			grid.set(SNAKE, nx, ny);
+			snake.insert(nx, ny);
+		}
+	}	
+}		
+function difference(a, b) {
+	return Math.abs(a - b);
+}
+function wallCheck(nx, ny){
+	switch(snake.direction){
+	case UP:
+		if(ny == 0){
+			canMove = 1;
+			switchButton();
+			var fred = document.getElementById("winner");
+			fred.innerHTML = "AI Wins!";
+		}
+		break;
+	case DOWN:
+		if(ny == COLS-1){
+			canMove = 1;
+			switchButton();
+			var fred = document.getElementById("winner");
+			fred.innerHTML = "AI Wins!";
+		}
+		break;
+	case LEFT:
+		if(nx == 0){
+			canMove = 1;
+			switchButton();
+			var fred = document.getElementById("winner");
+			fred.innerHTML = "AI Wins!";
+		}
+		break;
+	case RIGHT:
+		if(nx == ROWS-1){
+			canMove = 1;
+			switchButton();
+			var fred = document.getElementById("winner");
+			fred.innerHTML = "AI Wins!";
+		}
+		break;
+	}
+}
+function snekAI(nx, ny, onx, ony){
+	dis = difference(nx, onx) + difference(ny, ony);
+	
+	if(dis < 11){
+		mode = MODE_FRUIT;
+	}
+	if(mode == MODE_FRUIT){
+		safeMove = 0;
+		DIST = 3333;
+		hx = 0;
+		hy = 0;
+		for (var x=0; x < grid.width; x++) {
+			for (var y=0; y < grid.height; y++) {
+				if(grid.get(x, y) === FRUIT){
+					if(difference(onx, x) + difference(ony, y) < DIST){
+						DIST = difference(onx, x) + difference(ony, y);
+						hx = x;
+						hy = y;
+					}
+				}
+			}
+		}
+		if(hy < ony){
+			osnake.direction = UP;
+			console.log("dir is up");
+		}else if(hy > ony){
+			osnake.direction = DOWN;
+			console.log("dir is down");
+		}else if(hy == ony){
+			if(hx < onx){
+				osnake.direction = LEFT;
+				console.log("dir is left");
+			}else if(hx > onx){
+				osnake.direction = RIGHT;
+				console.log("dir is right");
+			}else{
+				console.log("Error with ai direction.");
+			}
+		}
+	}	
+}
+function switchButton() {
+    var aw = document.getElementById("start");
+    if (aw.style.display === "none") {
+        aw.style.display = "block";
+    } else {
+        aw.style.display = "none";
+    }
+	var aq = document.getElementById("winner");
+    if (aq.style.display === "none") {
+        aq.style.display = "block";
+    } else {
+        aq.style.display = "none";
+    }
+}
+function draw() {
+	var tw = canvas.width/grid.width;
+	var th = canvas.height/grid.height;
+	for (var x=0; x < grid.width; x++) {
+		for (var y=0; y < grid.height; y++) {
+			switch (grid.get(x, y)) {
+				case EMPTY:
+					ctx.fillStyle = "#000000";
+					break;
+				case OSNAKE:
+					ctx.fillStyle = "#ff0000"
+					break;
+				case SNAKE:
+					ctx.fillStyle = "#0000ff";
+					break;
+				case FRUIT:
+					ctx.fillStyle = "#00ff00";
+					break;
+				case four:
+					ctx.fillStyle = "3b8a3b";
+			}
+			ctx.fillRect(x*tw, y*th, tw, th);
+		}
+	}
+	ctx.fillStyle = "#ff00ff";
+}
+main();
+</script>
+</body>
+</html>
